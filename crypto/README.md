@@ -33,3 +33,17 @@ community-api.coinmetrics.io
 API key (kalau nanti pakai BGeometrics/CryptoQuant) disimpan sebagai
 environment variable `BGEOMETRICS_API_KEY` / `CRYPTOQUANT_API_KEY`,
 jangan di-commit.
+
+## Scanner breakout (`breakout.py`)
+Mencari token L1/RWA yang belum atau baru keluar dari tren bearish
+berdasarkan posisi harga terhadap SMA200/SMA50 harian.
+
+```bash
+python3 crypto/breakout.py              # semua (L1 + RWA)
+python3 crypto/breakout.py --group rwa
+python3 crypto/breakout.py SOL SUI ONDO
+```
+
+Kolom: `Hari>200` = hari sejak close di atas SMA200, `Bear%` = porsi hari
+di bawah SMA200 selama 180 hari sebelum breakout, `GC` = golden cross
+SMA50/SMA200 (berapa hari lalu), `Vol20/90` = volume 20 hari vs 90 hari.
