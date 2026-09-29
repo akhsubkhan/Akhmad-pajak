@@ -47,3 +47,14 @@ python3 crypto/breakout.py SOL SUI ONDO
 Kolom: `Hari>200` = hari sejak close di atas SMA200, `Bear%` = porsi hari
 di bawah SMA200 selama 180 hari sebelum breakout, `GC` = golden cross
 SMA50/SMA200 (berapa hari lalu), `Vol20/90` = volume 20 hari vs 90 hari.
+
+## Scanner futures (`futures_scan.py`)
+Mencari pair USDT likuid yang baru breakout (close > high 20 hari di 1D,
+atau > high 7 hari di 4H dengan volume > 1,5x) atau breakdown, lalu
+membuat rencana trade berbasis ATR 4H (entry retest, SL 1,2 ATR di bawah
+level, TP 1,5R/3R) dan ukuran posisi dari risk per trade.
+
+```bash
+python3 crypto/futures_scan.py --capital 3634 --risk 1
+```
+Breakout yang harganya sudah kembali ke bawah level ditandai `GAGAL`.
