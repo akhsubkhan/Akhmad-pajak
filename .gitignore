@@ -1,2 +1,3 @@
 .env
 __pycache__/
+crypto/hl_journal.csv

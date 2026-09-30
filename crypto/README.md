@@ -58,3 +58,19 @@ level, TP 1,5R/3R) dan ukuran posisi dari risk per trade.
 python3 crypto/futures_scan.py --capital 3634 --risk 1
 ```
 Breakout yang harganya sudah kembali ke bawah level ditandai `GAGAL`.
+
+## Bot Hyperliquid TESTNET (`hl_testnet_bot.py`)
+Menjalankan sinyal `futures_scan.py` di **Hyperliquid testnet** (uang mainan)
+dengan SL + TP otomatis. Terkunci ke testnet.
+
+```bash
+pip install -r crypto/requirements-hl.txt
+export HL_ACCOUNT_ADDRESS=0x...   # wallet utama testnet
+export HL_AGENT_KEY=0x...         # private key API wallet (agent), bukan wallet utama
+python3 crypto/hl_testnet_bot.py plan      # lihat rencana, tidak mengirim apa pun
+python3 crypto/hl_testnet_bot.py run       # kirim setelah konfirmasi "YA"
+python3 crypto/hl_testnet_bot.py status
+python3 crypto/hl_testnet_bot.py cancel-all
+```
+Batas: risk maks 2%/trade, leverage maks 5x (default 1% dan 3x isolated),
+maks 2 posisi. Order dicatat di `crypto/hl_journal.csv` (tidak di-commit).
