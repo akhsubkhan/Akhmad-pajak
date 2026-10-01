@@ -52,11 +52,18 @@ def analyze(base):
     d1 = klines(sym, "1d", 60)
     if len(h4) < 220 or len(d1) < 25:
         return None
-    price = h4[-1]["c"]
-    h4c, d1c = h4[:-1], d1[:-1]  # hanya candle yang sudah close
-    a = atr(h4c)
-    closes4 = [c["c"] for c in h4c]
-    ema50, ema200 = ema(closes4, 50), ema(closes4, 200)
+    # hanya candle yang sudah close; harga = candle 4H yang sedang berjalan
+    sig = evaluate(h4[:-1], d1[:-1], h4[-1]["c"])
+    if sig:
+        sig["coin"] = base
+    return sig
+
+
+def evaluate(h4c, d1c, price):
+    """Logika sinyal murni (dipakai juga oleh backtest.py).
+
+    h4c/d1c = candle 4H/1D yang sudah close (urut lama -> baru), price = harga saat ini.
+    """
     vol_avg = sum(c["v"] for c in h4c[-21:-1]) / 20
     last4 = h4c[-1]
 
@@ -87,6 +94,10 @@ def analyze(base):
     if not signals:
         return None
 
+    a = atr(h4c)
+    closes4 = [c["c"] for c in h4c]
+    ema50, ema200 = ema(closes4, 50), ema(closes4, 200)
+
     # pakai sinyal 1D kalau ada (lebih kuat), else 4H
     side, tf, level, ago = sorted(signals, key=lambda s: s[1] != "1D")[0]
     both = len({s[1] for s in signals if s[0] == side}) == 2
@@ -108,7 +119,7 @@ def analyze(base):
     score = (2 if tf == "1D" else 1) + (1 if both else 0) + (1 if trend_ok else 0) \
         - (1 if ext > 2 else 0) - (1 if ext > 4 else 0) - (3 if failed else 0)
     return {
-        "coin": base, "side": side, "tf": "4H+1D" if both else tf, "ago": ago,
+        "coin": None, "side": side, "tf": "4H+1D" if both else tf, "ago": ago,
         "price": price, "level": level, "ext": ext, "trend_ok": trend_ok,
         "rsi4": rsi(closes4), "vol_x": last4["v"] / vol_avg if vol_avg else 0,
         "entry": entry, "sl": sl, "tp1": tp1, "tp2": tp2,

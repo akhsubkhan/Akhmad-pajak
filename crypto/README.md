@@ -74,3 +74,16 @@ python3 crypto/hl_testnet_bot.py cancel-all
 ```
 Batas: risk maks 2%/trade, leverage maks 5x (default 1% dan 3x isolated),
 maks 2 posisi. Order dicatat di `crypto/hl_journal.csv` (tidak di-commit).
+
+## Backtest (`backtest.py`)
+Menguji strategi `hl_testnet_bot.py` (sinyal `futures_scan.py` + filter bot)
+di candle 4H/1D Binance, seolah bot dijalankan tiap candle 4H close.
+
+```bash
+python3 crypto/backtest.py                    # 365 hari, TP 1,5R, entry kedaluwarsa 12 candle 4H
+python3 crypto/backtest.py --tp 2 --expiry 0  # TP 3R, entry tidak pernah dibatalkan
+python3 crypto/backtest.py --days 180 --coins BTC ETH SOL --trades --csv trades.csv
+```
+Asumsi konservatif: kalau SL dan TP tersentuh di candle yang sama dianggap SL.
+Fee maker/taker dihitung, funding diabaikan. Universe = koin dengan volume
+terbesar hari ini (bias survivorship).
