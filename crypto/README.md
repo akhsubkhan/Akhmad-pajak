@@ -76,14 +76,38 @@ Batas: risk maks 2%/trade, leverage maks 5x (default 1% dan 3x isolated),
 maks 2 posisi. Order dicatat di `crypto/hl_journal.csv` (tidak di-commit).
 
 ## Backtest (`backtest.py`)
-Menguji strategi `hl_testnet_bot.py` (sinyal `futures_scan.py` + filter bot)
-di candle 4H/1D Binance, seolah bot dijalankan tiap candle 4H close.
+Menguji strategi bot (sinyal `futures_scan.py` + filter bot) di candle 4H/1D
+Binance, seolah bot dijalankan tiap candle 4H close.
 
 ```bash
-python3 crypto/backtest.py                    # 365 hari, TP 1,5R, entry kedaluwarsa 12 candle 4H
-python3 crypto/backtest.py --tp 2 --expiry 0  # TP 3R, entry tidak pernah dibatalkan
+python3 crypto/backtest.py                                   # setelan lama (TP 1,5R, retest)
+python3 crypto/backtest.py --market --side long --min-score 3 --tp-r 3 --max-pos 4   # setelan bot sekarang
+python3 crypto/backtest.py --tp-r 0 --trail 3                # tanpa TP, trailing stop 3 ATR
 python3 crypto/backtest.py --days 180 --coins BTC ETH SOL --trades --csv trades.csv
 ```
 Asumsi konservatif: kalau SL dan TP tersentuh di candle yang sama dianggap SL.
-Fee maker/taker dihitung, funding diabaikan. Universe = koin dengan volume
-terbesar hari ini (bias survivorship).
+Fee maker/taker dihitung, funding & slippage diabaikan. Universe = koin dengan
+volume terbesar hari ini (bias survivorship).
+
+## Riset parameter (`research.py`)
+Mencoba 6.720 kombinasi (entry market/retest, SL, TP/trailing, arah, filter
+tren, skor, jumlah posisi) di data 3 tahun. Kombinasi dipilih dari 2 tahun
+pertama (latih) lalu dinilai di 1 tahun terakhir (uji).
+
+```bash
+python3 crypto/research.py --cache /tmp/hl3y.pkl
+```
+
+Hasil riset (Okt 2026, risk 1%/trade, rata-rata R per trade):
+
+| Setelan | Thn-3 | Thn-2 | Thn-1 (uji) | 3 thn: hasil / max DD |
+|---|---|---|---|---|
+| Lama: retest 0,2 ATR, SL 1,2 ATR, TP 1,5R, long+short, maks 2 | +0,18R | -0,05R | +0,03R | +39% / 30% |
+| **Baru: market, SL 1,2 ATR, TP 3R, long saja, skor >= 3, maks 4** | +0,30R | +0,17R | +0,32R | +173% / 19% |
+| Baru, di 24 koin besar tetap (cek bias survivorship) | +0,15R | +0,17R | +0,26R | +79% / 25% |
+
+Semua 54 variasi di sekitar setelan baru (SL 1,0-1,5 ATR, TP 2,5-4R, maks
+3-5 posisi) juga positif, jadi hasilnya tidak bergantung pada satu angka pas.
+Temuan utama: sinyal SHORT merugi, dan membiarkan profit berjalan (TP 3R)
+lebih baik daripada TP 1,5R. Win rate hanya ~30%, jadi kalah beruntun
+8-12 kali itu normal.

@@ -119,7 +119,7 @@ def evaluate(h4c, d1c, price):
     score = (2 if tf == "1D" else 1) + (1 if both else 0) + (1 if trend_ok else 0) \
         - (1 if ext > 2 else 0) - (1 if ext > 4 else 0) - (3 if failed else 0)
     return {
-        "coin": None, "side": side, "tf": "4H+1D" if both else tf, "ago": ago,
+        "coin": None, "side": side, "atr": a, "tf": "4H+1D" if both else tf, "ago": ago,
         "price": price, "level": level, "ext": ext, "trend_ok": trend_ok,
         "rsi4": rsi(closes4), "vol_x": last4["v"] / vol_avg if vol_avg else 0,
         "entry": entry, "sl": sl, "tp1": tp1, "tp2": tp2,
