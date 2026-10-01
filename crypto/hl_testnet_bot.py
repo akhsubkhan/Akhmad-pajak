@@ -112,6 +112,10 @@ def clients(need_exchange):
 def account_snapshot(info, address):
     st = info.user_state(address)
     value = float(st["marginSummary"]["accountValue"])
+    if value == 0:
+        # Akun terpadu (unified): USDC tercatat di spot tapi langsung jadi margin perp.
+        spot = info.spot_user_state(address)["balances"]
+        value = sum(float(b["total"]) - float(b.get("hold", 0)) for b in spot if b["coin"] == "USDC")
     positions = [p["position"] for p in st["assetPositions"] if float(p["position"]["szi"]) != 0]
     orders = info.open_orders(address)
     return value, positions, orders
