@@ -44,7 +44,7 @@ import os
 import sys
 from pathlib import Path
 
-from backtest import Params, plan_trade
+from backtest import Params, check_trade
 from futures_scan import analyze, liquid_pairs
 
 TESTNET_URL = "https://api.hyperliquid-testnet.xyz"
@@ -192,12 +192,14 @@ def make_plan(info, address, args):
     p = strategy(args)
     pairs = liquid_pairs(args.top, args.min_vol)
     sigs = [s for s in (_safe(analyze, b) for b, _, _ in pairs) if s and not s["failed"]]
-    sigs = [(s, plan_trade(s, p)) for s in sigs]
-    sigs = [(s, pl) for s, pl in sigs if pl]
+    checked = [(s, *check_trade(s, p)) for s in sigs]
+    rejected = [(s["coin"], "sudah ada posisi/order" if s["coin"] in busy else why)
+                for s, pl, why in checked if not pl]
+    sigs = [(s, pl) for s, pl, _ in checked if pl]
     sigs.sort(key=lambda x: (-x[0]["score"], x[0]["ext"]))
     mids = info.all_mids() if p.market else {}
 
-    plan, skipped = [], []
+    plan, skipped = [], list(rejected)
     for s, (entry, sl, tp) in sigs:
         coin, long = s["coin"], s["side"] == "LONG"
         if coin not in sz_dec:
@@ -247,7 +249,9 @@ def print_plan(value, positions, orders, plan, skipped, stale, args):
         print(f"  {s['coin']:<8}{s['side']:<6} entry {i['entry']:<10g} SL {i['sl']:<10g} TP {i['tp']:<10g} "
               f"size {i['sz']:<10g} nilai ${i['notional']:,.0f}  risk ${i['risk']:.2f}  ({s['tf']}, skor {s['score']})")
     if skipped:
-        print("\nDilewati: " + "; ".join(f"{c} ({why})" for c, why in skipped))
+        print("\nSinyal yang dilewati:")
+        for c, why in skipped:
+            print(f"  {c:<8} {why}")
 
 
 def journal(rows):

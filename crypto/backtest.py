@@ -116,23 +116,34 @@ def precompute(data):
 
 def plan_trade(s, p):
     """Entry/SL/TP sesuai parameter. Return None kalau tidak lolos filter."""
+    return check_trade(s, p)[0]
+
+
+def check_trade(s, p):
+    """Return ((entry, sl, tp), None) kalau lolos filter, atau (None, alasan)."""
     long = s["side"] == "LONG"
     if p.side != "both" and s["side"].lower() != p.side:
-        return None
+        return None, f"arah {s['side']} (bot hanya {p.side})"
     if p.tf != "all" and p.tf not in s["tf"]:
-        return None
-    if s["score"] < p.min_score or s["ext"] > p.max_ext or (p.trend_only and not s["trend_ok"]):
-        return None
+        return None, f"timeframe {s['tf']}"
+    if s["score"] < p.min_score:
+        return None, f"skor {s['score']} < {p.min_score}"
+    if s["ext"] > p.max_ext:
+        return None, f"harga sudah {s['ext']:.1f} ATR dari level (maks {p.max_ext:g})"
+    if p.trend_only and not s["trend_ok"]:
+        return None, "tidak searah tren"
     a, lvl, price, sign = s["atr"], s["level"], s["price"], (1 if long else -1)
     entry = price if p.market else lvl + sign * p.entry_atr * a
     sl = lvl - sign * p.sl_atr * a
     r = sign * (entry - sl)
-    if r <= 0 or r / entry > 0.12:
-        return None
+    if r <= 0:
+        return None, "harga sudah melewati SL"
+    if r / entry > 0.12:
+        return None, f"jarak SL {r / entry * 100:.1f}% > 12%"
     if not p.market and not (sign * (price - entry) > 0):
-        return None  # limit akan langsung tereksekusi
+        return None, "harga belum di sisi aman entry (limit akan langsung tereksekusi)"
     tp = entry + sign * p.tp_r * r if p.tp_r else None
-    return entry, sl, tp
+    return (entry, sl, tp), None
 
 
 def simulate(pre, p, t_start=0, t_end=None):
