@@ -1,0 +1,166 @@
+{
+  "name": "Pengingat Jatuh Tempo Pajak Klien",
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "Setiap Hari 08.00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a2",
+      "name": "Baca Daftar Klien",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Klien",
+          "mode": "name"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a3",
+      "name": "Hitung Tenggat & Buat Pesan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Hitung tenggat pajak tiap klien dan buat pesan pengingat.\n// Kirim pengingat jika sisa hari tepat salah satu dari nilai ini:\nconst HARI_PENGINGAT = [7, 3, 1, 0];\n\nconst BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli',\n  'Agustus', 'September', 'Oktober', 'November', 'Desember'];\nconst HARI_MS = 24 * 60 * 60 * 1000;\n\n// Kewajiban per jenis (PMK 81/2024). Tanggal \"akhir\" = akhir bulan.\nconst KEWAJIBAN = {\n  'PPh Masa': [\n    { label: 'Setor PPh Masa', tanggal: 15 },\n    { label: 'Lapor SPT Masa PPh', tanggal: 20 },\n  ],\n  'PPN': [\n    { label: 'Setor & Lapor SPT Masa PPN', tanggal: 'akhir' },\n  ],\n  'SPT Tahunan OP': [\n    { label: 'Lapor SPT Tahunan Orang Pribadi', bulanTahunan: 3 },\n  ],\n  'SPT Tahunan Badan': [\n    { label: 'Lapor SPT Tahunan Badan', bulanTahunan: 4 },\n  ],\n};\n\n// \"Hari ini\" dalam WIB (UTC+7), disimpan sebagai tengah malam UTC.\nconst wib = new Date(Date.now() + 7 * 60 * 60 * 1000);\nconst hariIni = Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate());\n\n// Tenggat yang jatuh di hari Sabtu/Minggu bergeser ke hari kerja berikutnya.\n// Catatan: libur nasional belum dihitung.\nfunction geserAkhirPekan(t) {\n  let d = new Date(t);\n  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(d.getTime() + HARI_MS);\n  return d.getTime();\n}\n\nfunction tenggatBulanan(k, tahun, bulan) {\n  const tgl = k.tanggal === 'akhir' ? Date.UTC(tahun, bulan + 1, 0) : Date.UTC(tahun, bulan, k.tanggal);\n  const masa = new Date(Date.UTC(tahun, bulan - 1, 1));\n  return {\n    tenggat: geserAkhirPekan(tgl),\n    periode: `Masa ${BULAN[masa.getUTCMonth()]} ${masa.getUTCFullYear()}`,\n  };\n}\n\nfunction tenggatTahunan(k, tahun) {\n  return {\n    tenggat: geserAkhirPekan(Date.UTC(tahun, k.bulanTahunan, 0)),\n    periode: `Tahun Pajak ${tahun - 1}`,\n  };\n}\n\n// Tenggat terdekat yang belum lewat.\nfunction tenggatBerikutnya(k) {\n  const d = new Date(hariIni);\n  const y = d.getUTCFullYear();\n  const m = d.getUTCMonth();\n  const kandidat = k.bulanTahunan\n    ? [tenggatTahunan(k, y), tenggatTahunan(k, y + 1)]\n    : [tenggatBulanan(k, y, m), tenggatBulanan(k, y, m + 1)];\n  return kandidat.find((c) => c.tenggat >= hariIni);\n}\n\nfunction formatTanggal(t) {\n  const d = new Date(t);\n  return `${d.getUTCDate()} ${BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`;\n}\n\nfunction buatPengingat(rows) {\n  const hasil = [];\n  for (const row of rows) {\n    if (String(row.Aktif || '').trim().toLowerCase() !== 'ya') continue;\n    const daftar = KEWAJIBAN[String(row.Jenis || '').trim()];\n    if (!daftar) continue;\n\n    for (const k of daftar) {\n      const { tenggat, periode } = tenggatBerikutnya(k);\n      const sisaHari = Math.round((tenggat - hariIni) / HARI_MS);\n      if (!HARI_PENGINGAT.includes(sisaHari)) continue;\n\n      const kapan = sisaHari === 0 ? 'HARI INI' : `${sisaHari} hari lagi`;\n      const pesan = [\n        `Halo ${row.Nama},`,\n        '',\n        `Pengingat: *${k.label}* (${periode}) jatuh tempo *${formatTanggal(tenggat)}* (${kapan}).`,\n        '',\n        'Mohon kirimkan dokumen yang diperlukan agar bisa segera kami proses.',\n        '',\n        'Salam,',\n        'Akhmad - Konsultan Pajak',\n        'WA 089662414552',\n      ].join('\\n');\n\n      hasil.push({\n        nama: row.Nama,\n        email: row.Email,\n        whatsapp: String(row.WhatsApp || ''),\n        kewajiban: k.label,\n        periode,\n        tenggat: formatTanggal(tenggat),\n        sisaHari,\n        subjek: `Pengingat Pajak: ${k.label} - ${formatTanggal(tenggat)}`,\n        pesan,\n      });\n    }\n  }\n  return hasil;\n}\n\nreturn buatPengingat($input.all().map((i) => i.json)).map((j) => ({ json: j }));\n"
+      }
+    },
+    {
+      "id": "a4",
+      "name": "Kirim WhatsApp (Fonnte)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fonnte.com/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "GANTI_DENGAN_TOKEN_FONNTE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "target",
+              "value": "={{ $json.whatsapp }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.pesan }}"
+            },
+            {
+              "name": "countryCode",
+              "value": "62"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a5",
+      "name": "Kirim Email (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        680,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subjek }}",
+        "emailType": "text",
+        "message": "={{ $json.pesan.replace(/\\*/g, '') }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Setiap Hari 08.00": {
+      "main": [
+        [
+          {
+            "node": "Baca Daftar Klien",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baca Daftar Klien": {
+      "main": [
+        [
+          {
+            "node": "Hitung Tenggat & Buat Pesan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hitung Tenggat & Buat Pesan": {
+      "main": [
+        [
+          {
+            "node": "Kirim WhatsApp (Fonnte)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Kirim Email (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Jakarta"
+  }
+}
